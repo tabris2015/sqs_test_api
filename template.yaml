@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  apisqs
+
+  Sample SAM Template for apisqs
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 60
+
+Resources:
+  TestDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: test-dl-queue
+
+  SendMsgFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: SendMsg
+      Description: Send a message to a sqs queue
+      Role: arn:aws:iam::793267097648:role/sqs_ec2_role
+      CodeUri: send_msg/
+      Handler: main.lambda_handler
+      Runtime: python3.6
+      Events:
+        SendMsgAPI:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /send-msg
+            Method: get
+  
+  DLQAlarm:
+    Properties:
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: QueueName
+        Value:
+          Fn::GetAtt:
+          - TestDLQ
+          - QueueName
+      EvaluationPeriods: 5
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Period: 60
+      Statistic: Sum
+      Threshold: 10
+      TreatMissingData: breaching
+    Type: AWS::CloudWatch::Alarm
+  
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  SendMsgApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/send-msg/"
+  SendMsgFunction:
+    Description: "Hello World Lambda Function ARN"
+    Value: !GetAtt SendMsgFunction.Arn
